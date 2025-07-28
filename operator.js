@@ -76,12 +76,16 @@ function runOperator(operator, env = 'dev', ws = null, timeout = null) {
       let totalDelay = 0;
       let timeoutId = null;
       let isRunning = true;
+      let activeTimers = []; // Массив для отслеживания активных таймеров
 
       // Установить таймаут, если передан
       if (timeout) {
         timeoutId = setTimeout(() => {
           isRunning = false;
           console.log(`⏰ [${operator}] Длительность истекла (${timeout}с), завершаем отправку`);
+          // Очистить все активные таймеры
+          activeTimers.forEach( timerId => clearTimeout( timerId ) );
+          activeTimers = [];
           resolve(output);
         }, timeout * 1000);
       }
@@ -93,7 +97,13 @@ function runOperator(operator, env = 'dev', ws = null, timeout = null) {
 
       ws.on('close', (code, reason) => {
         isRunning = false;
-        if (timeoutId) clearTimeout(timeoutId);
+        if ( timeoutId ) {
+          clearTimeout( timeoutId );
+          timeoutId = null;
+        }
+        // Очистить все активные таймеры
+        activeTimers.forEach( timerId => clearTimeout( timerId ) );
+        activeTimers = [];
         const closeReason = getCloseReason(code, reason);
         console.log(`❌ [${operator}] Закрыто: ${closeReason}`);
         output += `❌ [${operator}] Закрыто: ${closeReason}\n`;
@@ -102,7 +112,13 @@ function runOperator(operator, env = 'dev', ws = null, timeout = null) {
 
       ws.on('error', err => {
         isRunning = false;
-        if (timeoutId) clearTimeout(timeoutId);
+        if ( timeoutId ) {
+          clearTimeout( timeoutId );
+          timeoutId = null;
+        }
+        // Очистить все активные таймеры
+        activeTimers.forEach( timerId => clearTimeout( timerId ) );
+        activeTimers = [];
         console.error(`⚠️ [${operator}] Ошибка: ${err.message}`);
         output += `⚠️ [${operator}] Ошибка: ${err.message}\n`;
         reject(err);
@@ -115,7 +131,7 @@ function runOperator(operator, env = 'dev', ws = null, timeout = null) {
         let cycleDelay = 0;
         messages.forEach((msg, index) => {
           cycleDelay += msg.delay;
-          setTimeout(() => {
+          const timerId = setTimeout( () => {
             if (!isRunning) return;
             
             const updatedMsg = {
@@ -128,17 +144,26 @@ function runOperator(operator, env = 'dev', ws = null, timeout = null) {
             const json = JSON.stringify(updatedMsg);
             console.log(`➡️ [${operator}] ${json}`);
             output += `➡️ [${operator}] ${json}\n`;
-            ws.send(json);
+
+            try {
+              ws.send( json );
+            } catch ( err ) {
+              console.error( `⚠️ [${operator}] Ошибка отправки: ${err.message}` );
+              isRunning = false;
+              return;
+            }
             
             // Если это последнее сообщение в цикле, запустить следующий цикл
             if (index === messages.length - 1) {
-              setTimeout(() => {
+              const cycleTimerId = setTimeout( () => {
                 if (isRunning) {
                   sendMessages(); // Рекурсивно запустить следующий цикл
                 }
               }, 1000); // Пауза 1 секунда между циклами
+              activeTimers.push( cycleTimerId );
             }
           }, cycleDelay);
+          activeTimers.push( timerId );
         });
       }
 
