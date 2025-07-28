@@ -1,0 +1,157 @@
+require('dotenv').config({ path: `.env.${process.env.ENV || 'dev'}` });
+
+const fs = require('fs');
+const WebSocket = require('ws');
+
+function connectOperator(operator, env = 'dev') {
+  if (!operator) {
+    console.error('❌ Не указан оператор!');
+    return Promise.reject(new Error('Не указан оператор'));
+  }
+
+  const WS_URL = process.env.WS_URL;
+  // Форматируем номер оператора с ведущим нулем для поиска токена
+  const operatorNum = operator.toString().padStart(2, '0');
+  const TOKEN = process.env[`AUTH_TOKEN_OPERATOR_${operatorNum}`];
+
+  if (!WS_URL || !TOKEN) {
+    console.error(`❌ Не найден WS_URL или токен для оператора "${operator}" (AUTH_TOKEN_OPERATOR_${operatorNum})`);
+    return Promise.reject(new Error('Не найден WS_URL или токен'));
+  }
+
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(WS_URL, {
+      headers: {
+        Authorization: `Bearer ${TOKEN}`
+      }
+    });
+    ws.once('open', () => {
+      console.log(`✅ [${operator}] Подключено`);
+      resolve({ ws });
+    });
+    ws.once('error', err => {
+      console.error(`⚠️ [${operator}] Ошибка подключения: ${err.message}`);
+      reject(err);
+    });
+  });
+}
+
+function getCloseReason(code, reason) {
+  const reasons = {
+    1000: 'Normal Closure',
+    1001: 'Going Away',
+    1002: 'Protocol Error',
+    1003: 'Unsupported Data',
+    1005: 'No Status Received',
+    1006: 'Abnormal Closure',
+    1007: 'Invalid frame payload data',
+    1008: 'Policy Violation',
+    1009: 'Message too big',
+    1010: 'Mandatory Extension',
+    1011: 'Internal Server Error',
+    1015: 'TLS Handshake'
+  };
+  const reasonText = reasons[code] || 'Unknown';
+  return `${reasonText} (${code})${reason ? ` - ${reason}` : ''}`;
+}
+
+function runOperator(operator, env = 'dev', ws = null, timeout = null) {
+  let messages;
+  try {
+    // Форматируем номер оператора с ведущим нулем
+    const operatorNum = operator.toString().padStart(2, '0');
+    messages = JSON.parse(fs.readFileSync(`operators/operator_${operatorNum}.json`));
+  } catch (err) {
+    console.error(`❌ Не удалось прочитать operators/operator_${operator.toString().padStart(2, '0')}.json: ${err.message}`);
+    return Promise.reject(err);
+  }
+
+  const getWs = ws
+    ? Promise.resolve({ ws })
+    : connectOperator(operator, env);
+
+  return getWs.then(({ ws }) => {
+    return new Promise((resolve, reject) => {
+      let output = '';
+      let totalDelay = 0;
+      let timeoutId = null;
+      let isRunning = true;
+
+      // Установить таймаут, если передан
+      if (timeout) {
+        timeoutId = setTimeout(() => {
+          isRunning = false;
+          console.log(`⏰ [${operator}] Длительность истекла (${timeout}с), завершаем отправку`);
+          resolve(output);
+        }, timeout * 1000);
+      }
+
+      ws.on('message', data => {
+        console.log(`⬅️ [${operator}] ${data}`);
+        output += `⬅️ [${operator}] ${data}\n`;
+      });
+
+      ws.on('close', (code, reason) => {
+        isRunning = false;
+        if (timeoutId) clearTimeout(timeoutId);
+        const closeReason = getCloseReason(code, reason);
+        console.log(`❌ [${operator}] Закрыто: ${closeReason}`);
+        output += `❌ [${operator}] Закрыто: ${closeReason}\n`;
+        resolve(output);
+      });
+
+      ws.on('error', err => {
+        isRunning = false;
+        if (timeoutId) clearTimeout(timeoutId);
+        console.error(`⚠️ [${operator}] Ошибка: ${err.message}`);
+        output += `⚠️ [${operator}] Ошибка: ${err.message}\n`;
+        reject(err);
+      });
+
+      // Функция для отправки сообщений
+      function sendMessages() {
+        if (!isRunning) return;
+        
+        let cycleDelay = 0;
+        messages.forEach((msg, index) => {
+          cycleDelay += msg.delay;
+          setTimeout(() => {
+            if (!isRunning) return;
+            
+            const updatedMsg = {
+              ...msg,
+              payload: {
+                ...msg.payload,
+                timestamp: Math.floor(Date.now() / 1000)
+              }
+            };
+            const json = JSON.stringify(updatedMsg);
+            console.log(`➡️ [${operator}] ${json}`);
+            output += `➡️ [${operator}] ${json}\n`;
+            ws.send(json);
+            
+            // Если это последнее сообщение в цикле, запустить следующий цикл
+            if (index === messages.length - 1) {
+              setTimeout(() => {
+                if (isRunning) {
+                  sendMessages(); // Рекурсивно запустить следующий цикл
+                }
+              }, 1000); // Пауза 1 секунда между циклами
+            }
+          }, cycleDelay);
+        });
+      }
+
+      // Запустить отправку сообщений
+      sendMessages();
+    });
+  });
+}
+
+if (require.main === module) {
+  const operator = process.argv[2] || process.env.REGION;
+  const env = process.env.ENV || 'dev';
+  runOperator(operator, env).catch(err => process.exit(1));
+}
+
+module.exports = { runOperator, connectOperator };

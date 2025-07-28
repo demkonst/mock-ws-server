@@ -1,0 +1,143 @@
+[
+  {
+    "payload": {
+      "lat": 58.00204962340735,
+      "lon": 106.58552110770091,
+      "timestamp": 1753394288,
+      "speed": 0,
+      "speed_accuracy": 1,
+      "course": 0,
+      "course_accuracy": 5,
+      "altitude": 10,
+      "altitude_accuracy": 2
+    },
+    "delay": 2000
+  },
+  {
+    "payload": {
+      "lat": 58.002058464809814,
+      "lon": 106.58551458014388,
+      "timestamp": 1753394290,
+      "speed": 0,
+      "speed_accuracy": 1,
+      "course": 0,
+      "course_accuracy": 5,
+      "altitude": 10,
+      "altitude_accuracy": 2
+    },
+    "delay": 2000
+  },
+  {
+    "payload": {
+      "lat": 58.002045108217914,
+      "lon": 106.58550551142253,
+      "timestamp": 1753394292,
+      "speed": 0,
+      "speed_accuracy": 1,
+      "course": 0,
+      "course_accuracy": 5,
+      "altitude": 10,
+      "altitude_accuracy": 2
+    },
+    "delay": 2000
+  },
+  {
+    "payload": {
+      "lat": 58.00207541859807,
+      "lon": 106.58550238717568,
+      "timestamp": 1753394294,
+      "speed": 0,
+      "speed_accuracy": 1,
+      "course": 0,
+      "course_accuracy": 5,
+      "altitude": 10,
+      "altitude_accuracy": 2
+    },
+    "delay": 2000
+  },
+  {
+    "payload": {
+      "lat": 58.002065015936665,
+      "lon": 106.5855052936647,
+      "timestamp": 1753394296,
+      "speed": 0,
+      "speed_accuracy": 1,
+      "course": 0,
+      "course_accuracy": 5,
+      "altitude": 10,
+      "altitude_accuracy": 2
+    },
+    "delay": 2000
+  },
+  {
+    "payload": {
+      "lat": 58.002055389362006,
+      "lon": 106.58550922841769,
+      "timestamp": 1753394298,
+      "speed": 0,
+      "speed_accuracy": 1,
+      "course": 0,
+      "course_accuracy": 5,
+      "altitude": 10,
+      "altitude_accuracy": 2
+    },
+    "delay": 2000
+  },
+  {
+    "payload": {
+      "lat": 58.00205818492464,
+      "lon": 106.58548798078337,
+      "timestamp": 1753394300,
+      "speed": 0,
+      "speed_accuracy": 1,
+      "course": 0,
+      "course_accuracy": 5,
+      "altitude": 10,
+      "altitude_accuracy": 2
+    },
+    "delay": 2000
+  },
+  {
+    "payload": {
+      "lat": 58.002064756776285,
+      "lon": 106.58550561835031,
+      "timestamp": 1753394302,
+      "speed": 0,
+      "speed_accuracy": 1,
+      "course": 0,
+      "course_accuracy": 5,
+      "altitude": 10,
+      "altitude_accuracy": 2
+    },
+    "delay": 2000
+  },
+  {
+    "payload": {
+      "lat": 58.002079424007135,
+      "lon": 106.58549288844901,
+      "timestamp": 1753394304,
+      "speed": 0,
+      "speed_accuracy": 1,
+      "course": 0,
+      "course_accuracy": 5,
+      "altitude": 10,
+      "altitude_accuracy": 2
+    },
+    "delay": 2000
+  },
+  {
+    "payload": {
+      "lat": 58.00206716503671,
+      "lon": 106.58549319766566,
+      "timestamp": 1753394306,
+      "speed": 0,
+      "speed_accuracy": 1,
+      "course": 0,
+      "course_accuracy": 5,
+      "altitude": 10,
+      "altitude_accuracy": 2
+    },
+    "delay": 2000
+  }
+]
+

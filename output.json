@@ -1,0 +1,10 @@
+VALUES ('Volvo FH16',    'А123ВС77',    'special',    207134),
+(    'Scania R500',    'Т908МО99',    'special',    230653),
+(    'MAN TGS',    'М456КХ78',    'special',    231793),
+('Toyota Camry',    'С301НР50',    'car',    242978),
+('Volkswagen Golf',    'Р642ТС63',    'car',    24072311),
+('Kia Sportage',    'В204ОК161',    'car',    459943),
+('DAF XF 530',    'К777ЕМ97',    'special',    24072310),
+('Mack Pioneer',    'Т903МТ77',    'special',    24071737),
+(    'Volvo FH Aero',    'К742СР99',    'special',    24071743),
+(    'Ford Super Duty F‑250/F‑350 (2025)',    'Н615ВО78',    'special',    24072322)
