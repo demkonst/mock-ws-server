@@ -15,7 +15,7 @@ function delay(ms) {
 
 class Transport {
   constructor(client, env = 'dev', options = {}) {
-    this.client = client; // это номер файла (например, "16")
+    this.client = client;
     this.env = env;
     this.duration = options.duration || 300; // длительность в секундах
     this.delay = options.delay || DELAY_MS;

@@ -17,7 +17,7 @@ function findOperators() {
   const operatorsDir = path.join(__dirname, 'operators');
   
   // Проверяем файлы от 01 до 20
-  for (let i = 1; i <= 20; i++) {
+  for (let i = 1; i <= 99; i++) {
     const operatorNum = i.toString().padStart(2, '0');
     const filePath = path.join(operatorsDir, `operator_${operatorNum}.json`);
     
@@ -35,7 +35,7 @@ function findClients() {
   
   // Проверяем файлы vehicle_*.json от 01 до 20
   if (fs.existsSync(vehiclesDir)) {
-    for (let i = 1; i <= 20; i++) {
+    for (let i = 1; i <= 99; i++) {
       const vehicleNum = i.toString().padStart(2, '0');
       const filePath = path.join(vehiclesDir, `vehicle_${vehicleNum}.json`);
       
