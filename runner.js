@@ -49,6 +49,34 @@ class Runner {
     this.runInBackground();
     return statuses;
   }
+
+  stopAll() {
+    console.log( `🛑 Останавливаем Runner для операторов: [${this.operators.join( ', ' )}]` );
+
+    // Закрыть все WebSocket соединения
+    for ( const [ operator, ws ] of this.wsMap.entries() ) {
+      try {
+        console.log( `🛑 Закрываем WebSocket для оператора ${operator}` );
+        ws.close();
+      } catch ( e ) {
+        console.error( `Ошибка при закрытии WebSocket для оператора ${operator}:`, e );
+      }
+    }
+
+    // Очистить реестры
+    this.wsMap.clear();
+    if ( this.wsRegistry ) {
+      for ( const [ operator, ws ] of this.wsRegistry.entries() ) {
+        if ( this.operators.includes( operator ) ) {
+          try {
+            ws.close();
+          } catch ( e ) {
+            // ignore
+          }
+        }
+      }
+    }
+  }
 }
 
 if (require.main === module) {

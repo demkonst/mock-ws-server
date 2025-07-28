@@ -9,6 +9,7 @@ class TransportRunner {
     this.debug = options.debug || false;
     this.logBuffer = [];
     this.transportMap = new Map(); // client -> transport
+    this.transportRegistry = options.transportRegistry || null; // глобальный реестр транспортов
     this.duration = options.duration || 300; // длительность в секундах
   }
 
@@ -45,6 +46,11 @@ class TransportRunner {
       });
       this.transportMap.set(client, transport);
       
+      // Добавить в глобальный реестр, если он есть
+      if ( this.transportRegistry ) {
+        this.transportRegistry.set( client, transport );
+      }
+
       transport.run().catch(err => {
         console.error(`[${client}] Ошибка в фоне:`, err);
       });
@@ -59,10 +65,26 @@ class TransportRunner {
   }
 
   stopAll() {
+    console.log( `🛑 Останавливаем TransportRunner для клиентов: [${this.clients.join( ', ' )}]` );
+
     for (const [client, transport] of this.transportMap) {
-      transport.stop();
+      try {
+        console.log( `🛑 Останавливаем транспорт для клиента ${client}` );
+        transport.stop();
+      } catch ( e ) {
+        console.error( `Ошибка при остановке транспорта для клиента ${client}:`, e );
+      }
     }
+
+    // Очистить локальный реестр
     this.transportMap.clear();
+
+    // Очистить глобальный реестр
+    if ( this.transportRegistry ) {
+      for ( const client of this.clients ) {
+        this.transportRegistry.delete( client );
+      }
+    }
   }
 }
 

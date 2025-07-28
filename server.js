@@ -9,6 +9,8 @@ const PORT = 3000;
 
 const wsRegistry = new Map(); // region -> ws
 const transportRegistry = new Map(); // client -> transport
+const runnerRegistry = new Map(); // env -> runner
+const transportRunnerRegistry = new Map(); // env -> transportRunner
 
 app.use(express.json());
 
@@ -63,6 +65,28 @@ app.post('/run', async (req, res) => {
     console.log(`⏰ Длительность: ${duration} секунд`);
   }
   
+  // Остановить старые runner'ы
+  for ( const [ envKey, runner ] of runnerRegistry.entries() ) {
+    try {
+      console.log( `🛑 Останавливаем старый Runner для ${envKey}` );
+      runner.stopAll();
+    } catch ( e ) {
+      console.error( `Ошибка при остановке Runner для ${envKey}:`, e );
+    }
+  }
+  runnerRegistry.clear();
+
+  // Остановить старые transportRunner'ы
+  for ( const [ envKey, transportRunner ] of transportRunnerRegistry.entries() ) {
+    try {
+      console.log( `🛑 Останавливаем старый TransportRunner для ${envKey}` );
+      transportRunner.stopAll();
+    } catch ( e ) {
+      console.error( `Ошибка при остановке TransportRunner для ${envKey}:`, e );
+    }
+  }
+  transportRunnerRegistry.clear();
+
   // Завершить все старые ws
   for (const ws of wsRegistry.values()) {
     try {
@@ -88,6 +112,7 @@ app.post('/run', async (req, res) => {
   // Запустить WebSocket операторы
   if (operators.length > 0) {
     const runner = new Runner(operators, env, { wsRegistry, timeout: duration });
+    runnerRegistry.set( env, runner );
     try {
       const statuses = await runner.run();
       results.operators = statuses;
@@ -101,7 +126,11 @@ app.post('/run', async (req, res) => {
 
   // Запустить HTTP транспорт
   if (clients.length > 0) {
-    const transportRunner = new TransportRunner(clients, env, { duration: duration || 300 });
+    const transportRunner = new TransportRunner( clients, env, {
+      duration: duration || 300,
+      transportRegistry: transportRegistry
+    } );
+    transportRunnerRegistry.set( env, transportRunner );
     try {
       const statuses = await transportRunner.run();
       results.transport = statuses;
@@ -115,6 +144,55 @@ app.post('/run', async (req, res) => {
 
   res.json(results);
 });
+
+app.post( '/stop', async ( req, res ) => {
+  console.log( '🛑 Получен запрос на остановку всех процессов...' );
+
+  // Остановить старые runner'ы
+  for ( const [ envKey, runner ] of runnerRegistry.entries() ) {
+    try {
+      console.log( `🛑 Останавливаем Runner для ${envKey}` );
+      runner.stopAll();
+    } catch ( e ) {
+      console.error( `Ошибка при остановке Runner для ${envKey}:`, e );
+    }
+  }
+  runnerRegistry.clear();
+
+  // Остановить старые transportRunner'ы
+  for ( const [ envKey, transportRunner ] of transportRunnerRegistry.entries() ) {
+    try {
+      console.log( `🛑 Останавливаем TransportRunner для ${envKey}` );
+      transportRunner.stopAll();
+    } catch ( e ) {
+      console.error( `Ошибка при остановке TransportRunner для ${envKey}:`, e );
+    }
+  }
+  transportRunnerRegistry.clear();
+
+  // Завершить все старые ws
+  for ( const ws of wsRegistry.values() ) {
+    try {
+      ws.close();
+    } catch ( e ) {
+      // ignore
+    }
+  }
+  wsRegistry.clear();
+
+  // Остановить все старые транспорты
+  for ( const transport of transportRegistry.values() ) {
+    try {
+      transport.stop();
+    } catch ( e ) {
+      // ignore
+    }
+  }
+  transportRegistry.clear();
+
+  console.log( '✅ Все процессы остановлены' );
+  res.json( { status: 'stopped', message: 'Все процессы остановлены' } );
+} );
 
 app.listen(PORT, () => {
   console.log(`Server started on http://localhost:${PORT}`);
