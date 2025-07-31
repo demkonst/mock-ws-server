@@ -3,29 +3,53 @@ const WebSocket = require('ws');
 const dotenv = require('dotenv');
 const { interpolateCoordinates, calculateDistance } = require('./vehicle.js');
 
+// Маппинг между именами файлов операторов и числовыми ID для API
+const OPERATOR_ID_MAPPING = {
+  '01': '99',           // Используем существующий токен AUTH_TOKEN_OPERATOR_01
+  '02': '102',          // Используем существующий токен AUTH_TOKEN_OPERATOR_02
+  'HIAGDA': '88',       // Используем существующий токен AUTH_TOKEN_OPERATOR_HIAGDA
+  'new_format': '99',   // Используем тот же ID, что и для '01'
+  'geo_events': '99',   // Используем тот же ID, что и для '01'
+  'interpolation_test': '99', // Используем тот же ID, что и для '01'
+  'with_interpolation': '99', // Используем тот же ID, что и для '01'
+  'without_interpolation': '99' // Используем тот же ID, что и для '01'
+};
+
 function loadEnvFor(env) {
   dotenv.config({ path: `.env.${env}` });
 }
 
 async function getOperatorToken(operatorId, env = 'dev') {
   loadEnvFor(env);
-  const baseUrl = process.env.BASE_URL;
+  const baseUrl = process.env.BASE_URL_UNITS;
   const authHeader = process.env.AUTH_HEADER || 'Basic aW5rLW1vbjppbmttb25pdG9yaW5n';
   
   if (!baseUrl) {
-    throw new Error('Не найден BASE_URL');
+    throw new Error('Не найден BASE_URL_UNITS');
   }
+
+  // Преобразуем имя оператора в числовой ID через маппинг
+  const numericOperatorId = OPERATOR_ID_MAPPING[operatorId] || operatorId;
+  console.log(`🔄 [${operatorId}] Преобразован в числовой ID: ${numericOperatorId}`);
+  console.log(`🔗 [${operatorId}] URL: ${baseUrl.replace(/\/$/, '')}/operators/credentials?operator_id=${numericOperatorId}`);
+  console.log(`🔐 [${operatorId}] Auth header: ${authHeader}`);
 
   try {
     // Получаем credentials для оператора
-    const credentialsResponse = await fetch(`${baseUrl}/api/units/operators/credentials?operator_id=${operatorId}`, {
+    const credentialsUrl = `${baseUrl.replace(/\/$/, '')}/operators/credentials?operator_id=${numericOperatorId}`;
+    const credentialsResponse = await fetch(credentialsUrl, {
       headers: {
         'Accept': 'application/json',
         'Authorization': authHeader
       }
     });
 
+    console.log(`📡 [${operatorId}] Response status: ${credentialsResponse.status}`);
+    console.log(`📡 [${operatorId}] Response headers:`, Object.fromEntries(credentialsResponse.headers.entries()));
+
     if (!credentialsResponse.ok) {
+      const errorText = await credentialsResponse.text();
+      console.error(`❌ [${operatorId}] Error response: ${errorText}`);
       throw new Error(`Ошибка получения credentials: ${credentialsResponse.status}`);
     }
 
@@ -33,7 +57,8 @@ async function getOperatorToken(operatorId, env = 'dev') {
     console.log(`📋 [${operatorId}] Получены credentials`);
 
     // Логинимся с полученными credentials
-    const loginResponse = await fetch(`${baseUrl}/api/units/auth/operator/login`, {
+    const loginUrl = `${baseUrl.replace(/\/$/, '')}/auth/operator/login`;
+    const loginResponse = await fetch(loginUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -46,12 +71,16 @@ async function getOperatorToken(operatorId, env = 'dev') {
       })
     });
 
+    console.log(`🔐 [${operatorId}] Login response status: ${loginResponse.status}`);
+
     if (!loginResponse.ok) {
+      const errorText = await loginResponse.text();
+      console.error(`❌ [${operatorId}] Login error response: ${errorText}`);
       throw new Error(`Ошибка логина: ${loginResponse.status}`);
     }
 
     const loginData = await loginResponse.json();
-    console.log(`🔑 [${operatorId}] Получен токен`);
+    console.log(`🔑 [${operatorId}] Получен токен: ${loginData.token || loginData.access_token}`);
     
     return loginData.token || loginData.access_token;
   } catch (error) {
@@ -67,30 +96,23 @@ function connectOperator(operator, env = 'dev', operatorId = null) {
     return Promise.reject(new Error('Не указан оператор'));
   }
 
-  const baseUrl = process.env.BASE_URL;
+  const baseUrl = process.env.BASE_URL_COLLECTOR;
   if (!baseUrl) {
-    console.error('❌ BASE_URL не определён в .env');
-    return Promise.reject(new Error('Не найден BASE_URL'));
+    console.error('❌ BASE_URL_COLLECTOR не определён в .env');
+    return Promise.reject(new Error('Не найден BASE_URL_COLLECTOR'));
   }
-  const wsUrl = `${baseUrl}/api/collector/locations/ws`;
+  const wsUrl = `${baseUrl.replace(/\/$/, '')}/locations/ws`;
+  console.log(`🔗 [${operator}] WebSocket URL: ${wsUrl}`);
   
   return new Promise(async (resolve, reject) => {
     try {
       let TOKEN;
       
-      if (operatorId) {
-        // Получаем токен через API для кастомного оператора
-        TOKEN = await getOperatorToken(operatorId, env);
-      } else {
-        // Используем токен из окружения для файлового оператора
-        const operatorNum = operator.toString().padStart(2, '0');
-        TOKEN = process.env[`AUTH_TOKEN_OPERATOR_${operatorNum}`];
-        
-        if (!TOKEN) {
-          console.error(`❌ Не найден токен для оператора "${operator}" (AUTH_TOKEN_OPERATOR_${operatorNum})`);
-          return reject(new Error('Не найден токен'));
-        }
-      }
+      // Всегда используем API для получения токена
+      // Если operatorId передан, используем его, иначе используем имя оператора
+      const targetOperatorId = operatorId || operator;
+      TOKEN = await getOperatorToken(targetOperatorId, env);
+      console.log(`🔐 [${operator}] Используем токен: ${TOKEN.substring(0, 20)}...`);
 
       const ws = new WebSocket(wsUrl, {
         headers: {
@@ -245,6 +267,11 @@ function runOperator(operator, env = 'dev', ws = null, timeout = null, customCoo
         messages = data;
       } else {
         throw new Error(`Неизвестный формат файла оператора: ${filePath}`);
+      }
+      
+      // Для файловых операторов используем имя оператора как operatorId
+      if (!operatorId) {
+        operatorId = operator;
       }
     }
   } catch (err) {

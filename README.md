@@ -418,8 +418,33 @@ mock-ws-server/
 Создайте файлы `.env.dev`, `.env.demo`, `.env.stage` с настройками:
 
 ```env
-BASE_URL=https://your-api-url.com
+# Базовые URL для разных сервисов
+BASE_URL_CONNECTOR=https://your-domain.com/api/connector/
+BASE_URL_COLLECTOR=https://your-domain.com/api/collector/
+BASE_URL_UNITS=https://your-domain.com/api/units/
+BASE_URL_STREAMER=https://your-domain.com/api/streamer/
+
+# Авторизация
+AUTH_HEADER=Basic aW5rLW1vbjppbmttb25pdG9yaW5n
+
+# Токены для операторов (для файловых операторов)
+AUTH_TOKEN_OPERATOR_01=your-token-01
+AUTH_TOKEN_OPERATOR_02=your-token-02
+AUTH_TOKEN_OPERATOR_03=your-token-03
+AUTH_TOKEN_OPERATOR_04=your-token-04
+AUTH_TOKEN_OPERATOR_05=your-token-05
+AUTH_TOKEN_OPERATOR_06=your-token-06
+AUTH_TOKEN_OPERATOR_07=your-token-07
+AUTH_TOKEN_OPERATOR_08=your-token-08
+AUTH_TOKEN_OPERATOR_09=your-token-09
 ```
+
+### Описание переменных
+
+- **BASE_URL_CONNECTOR** - URL для connector сервиса (используется для отправки координат транспортных средств)
+- **BASE_URL_COLLECTOR** - URL для collector сервиса (используется для WebSocket подключений операторов)
+- **BASE_URL_UNITS** - URL для units сервиса (используется для работы с операторами и сменами)
+- **BASE_URL_STREAMER** - URL для streamer сервиса (используется для отправки уведомлений)
 
 ## Автоматические функции
 

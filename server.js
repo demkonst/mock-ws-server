@@ -273,12 +273,12 @@ app.post('/run', async (req, res) => {
 
     // Проверка и создание смен перед запуском процессов
     try {
-      const baseUrl = process.env.BASE_URL;
+      const baseUrl = process.env.BASE_URL_UNITS;
       if (baseUrl) {
         console.log('🔍 Проверяем текущие смены...');
         
         // Проверяем текущие смены
-        const currentShiftsResponse = await fetch(`${baseUrl}/api/units/shifts/current`, {
+        const currentShiftsResponse = await fetch(`${baseUrl}/shifts/current`, {
           headers: {
             'Accept': 'application/json',
             'Authorization': 'Basic aW5rLW1vbjppbmttb25pdG9yaW5n'
@@ -291,7 +291,7 @@ app.post('/run', async (req, res) => {
           console.log('⚠️ Текущие смены не найдены, создаём новые...');
           
           // Получаем шаблоны смен
-          const templatesResponse = await fetch(`${baseUrl}/api/units/shift-templates`, {
+          const templatesResponse = await fetch(`${baseUrl}/shift-templates`, {
             headers: {
               'Accept': 'application/json',
               'Authorization': 'Basic aW5rLW1vbjppbmttb25pdG9yaW5n'
@@ -325,7 +325,7 @@ app.post('/run', async (req, res) => {
                   shift_date: today
                 };
                 
-                const createShiftResponse = await fetch(`${baseUrl}/api/units/shifts`, {
+                const createShiftResponse = await fetch(`${baseUrl}/shifts`, {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json',
@@ -361,11 +361,11 @@ app.post('/run', async (req, res) => {
 
     // Отправка уведомления только если notifications === true
     if (notifications) {
-      const baseUrl = process.env.BASE_URL;
+      const baseUrl = process.env.BASE_URL_STREAMER;
       if (!baseUrl) {
-        console.error('❌ BASE_URL не определён в .env');
+        console.error('❌ BASE_URL_STREAMER не определён в .env');
       } else {
-        const notificationUrl = `${baseUrl}/api/streamer/notifications/message`;
+        const notificationUrl = `${baseUrl}/notifications/message`;
         // Отправка уведомления сразу
         const randomIndex = Math.floor(Math.random() * messages.length);
         const notificationBody = {

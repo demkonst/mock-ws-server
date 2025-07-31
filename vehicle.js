@@ -114,7 +114,7 @@ class Vehicle {
     console.log(`📤 [${this.client}] Отправляем координату: (${lat.toFixed(8)}, ${lon.toFixed(8)})`);
 
     try {
-      const response = await axios.post(process.env.BASE_URL + '/api/connector/debug/locations/vehicle', payload);
+      const response = await axios.post(process.env.BASE_URL_CONNECTOR + '/debug/locations/vehicle', payload);
       console.log(`✅ [${this.client}] (${lat.toFixed(8)}, ${lon.toFixed(8)}) => ${response.status}`);
       return { success: true, status: response.status };
     } catch (err) {
@@ -124,13 +124,13 @@ class Vehicle {
   }
 
   async run() {
-    console.log(`[Vehicle ${this.client}] run(), BASE_URL:`, process.env.BASE_URL);
-    const baseUrl = process.env.BASE_URL;
+    console.log(`[Vehicle ${this.client}] run(), BASE_URL_CONNECTOR:`, process.env.BASE_URL_CONNECTOR);
+    const baseUrl = process.env.BASE_URL_CONNECTOR;
     if (!baseUrl) {
-      console.error(`❌ Не найден BASE_URL для клиента "${this.client}"`);
-      return Promise.reject(new Error('Не найден BASE_URL'));
+      console.error(`❌ Не найден BASE_URL_CONNECTOR для клиента "${this.client}"`);
+      return Promise.reject(new Error('Не найден BASE_URL_CONNECTOR'));
     }
-    const vehicleBaseUrl = `${baseUrl}/api/connector/debug/locations/vehicle`;
+    const vehicleBaseUrl = `${baseUrl}/debug/locations/vehicle`;
 
     let coords;
     
