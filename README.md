@@ -423,6 +423,9 @@ BASE_URL_CONNECTOR=https://your-domain.com/api/connector/
 BASE_URL_COLLECTOR=https://your-domain.com/api/collector/
 BASE_URL_UNITS=https://your-domain.com/api/units/
 BASE_URL_STREAMER=https://your-domain.com/api/streamer/
+
+# Авторизация (токены скрыты для безопасности)
+AUTH_HEADER=Basic <base64 логин от стендов>
 ```
 
 ### Описание переменных
