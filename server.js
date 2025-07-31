@@ -275,86 +275,74 @@ app.post('/run', async (req, res) => {
     // Проверка и создание смен перед запуском процессов
     try {
       const baseUrl = process.env.BASE_URL_UNITS;
+      console.log(`🔍 BASE_URL_UNITS: ${baseUrl}`);
       if (baseUrl) {
-        console.log('🔍 Проверяем текущие смены...');
+        console.log('🔍 Проверяем шаблоны смен...');
         
-        // Проверяем текущие смены
-        const currentShiftsResponse = await fetch(`${baseUrl}/shifts/current`, {
+        // Получаем шаблоны смен
+        const templatesResponse = await fetch(`${baseUrl}/shift-templates`.replace(/\/\//g, '/').replace('https:/', 'https://'), {
           headers: {
             'Accept': 'application/json',
             'Authorization': 'Basic aW5rLW1vbjppbmttb25pdG9yaW5n'
           }
         });
-        const currentShiftsData = await currentShiftsResponse.text();
-        console.log(`📊 Статус проверки смен: ${currentShiftsResponse.status}, данные: ${currentShiftsData.substring(0, 100)}...`);
+        console.log(`📊 Статус получения шаблонов: ${templatesResponse.status}`);
         
-        if (currentShiftsResponse.status === 404 || !currentShiftsData || currentShiftsData === '[]') {
-          console.log('⚠️ Текущие смены не найдены, создаём новые...');
+        if (templatesResponse.ok) {
+          const templatesText = await templatesResponse.text();
+          console.log(`📊 Сырой ответ от сервера: ${templatesText.substring(0, 200)}...`);
           
-          // Получаем шаблоны смен
-          const templatesResponse = await fetch(`${baseUrl}/shift-templates`, {
-            headers: {
-              'Accept': 'application/json',
-              'Authorization': 'Basic aW5rLW1vbjppbmttb25pdG9yaW5n'
-            }
-          });
-          console.log(`📊 Статус получения шаблонов: ${templatesResponse.status}`);
+          let templates;
+          try {
+            templates = JSON.parse(templatesText);
+          } catch (e) {
+            console.error(`❌ Ошибка парсинга JSON: ${e.message}`);
+            templates = null;
+          }
           
-          if (templatesResponse.ok) {
-            const templatesText = await templatesResponse.text();
-            console.log(`📊 Сырой ответ от сервера: ${templatesText.substring(0, 200)}...`);
+          console.log(`📊 Получено шаблонов: ${templates && templates.items ? templates.items.length : 0}`);
+          
+          if (templates && templates.items && templates.items.length > 0) {
+            // Создаём смены для каждого шаблона
+            const today = new Date().toISOString().split('T')[0]; // yyyy-mm-dd
+            console.log(`📅 Создаём смены на дату: ${today}`);
             
-            let templates;
-            try {
-              templates = JSON.parse(templatesText);
-            } catch (e) {
-              console.error(`❌ Ошибка парсинга JSON: ${e.message}`);
-              templates = null;
-            }
-            
-            console.log(`📊 Получено шаблонов: ${templates && templates.items ? templates.items.length : 0}`);
-            
-            if (templates && templates.items && templates.items.length > 0) {
-              // Создаём смены для каждого шаблона
-              const today = new Date().toISOString().split('T')[0]; // yyyy-mm-dd
-              console.log(`📅 Создаём смены на дату: ${today}`);
+            for (const template of templates.items) {
+              console.log(`🔄 Создаём смену для шаблона ID: ${template.id}`);
+              const shiftData = {
+                shift_template_id: template.id,
+                shift_date: today
+              };
               
-              for (const template of templates.items) {
-                console.log(`🔄 Создаём смену для шаблона ID: ${template.id}`);
-                const shiftData = {
-                  shift_template_id: template.id,
-                  shift_date: today
-                };
-                
-                const createShiftResponse = await fetch(`${baseUrl}/shifts`, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'Authorization': 'Basic aW5rLW1vbjppbmttb25pdG9yaW5n'
-                  },
-                  body: JSON.stringify(shiftData)
-                });
-                
-                const createShiftData = await createShiftResponse.text();
-                console.log(`📊 Статус создания смены ${template.id}: ${createShiftResponse.status}, ответ: ${createShiftData.substring(0, 100)}...`);
-                
-                if (createShiftResponse.ok) {
-                  console.log(`✅ Смена создана для шаблона ${template.id}`);
-                } else {
-                  console.error(`❌ Ошибка создания смены для шаблона ${template.id}: ${createShiftResponse.status} - ${createShiftData}`);
-                }
+              const createShiftResponse = await fetch(`${baseUrl}/shifts`.replace(/\/\//g, '/').replace('https:/', 'https://'), {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json',
+                  'Authorization': 'Basic aW5rLW1vbjppbmttb25pdG9yaW5n'
+                },
+                body: JSON.stringify(shiftData)
+              });
+              
+              const createShiftData = await createShiftResponse.text();
+              console.log(`📊 Статус создания смены ${template.id}: ${createShiftResponse.status}, ответ: ${createShiftData.substring(0, 100)}...`);
+              
+              if (createShiftResponse.ok) {
+                console.log(`✅ Смена создана для шаблона ${template.id}`);
+              } else {
+                console.error(`❌ Ошибка создания смены для шаблона ${template.id}: ${createShiftResponse.status} - ${createShiftData}`);
               }
-            } else {
-              console.warn('⚠️ Шаблоны смен не найдены или пустой массив');
             }
           } else {
-            const errorData = await templatesResponse.text();
-            console.error(`❌ Ошибка получения шаблонов смен: ${templatesResponse.status} - ${errorData}`);
+            console.warn('⚠️ Шаблоны смен не найдены или пустой массив');
           }
         } else {
-          console.log('✅ Текущие смены найдены, пропускаем создание');
+          const errorData = await templatesResponse.text();
+          console.error(`❌ Ошибка получения шаблонов смен: ${templatesResponse.status} - ${errorData}`);
+          console.log('💡 Возможно, API не поддерживает создание смен или эндпоинты недоступны');
         }
+      } else {
+        console.log('⚠️ BASE_URL_UNITS не определен, пропускаем создание смен');
       }
     } catch (error) {
       console.error('❌ Ошибка при проверке/создании смен:', error.message);
