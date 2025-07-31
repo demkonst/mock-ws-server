@@ -156,6 +156,7 @@ const messages = [
 app.post('/run', async (req, res) => {
   try {
   const env = req.body.env || 'dev';
+  console.log(`🌍 Окружение из запроса: ${env}`);
     // Загружаем .env.<env> файл
     try {
       dotenv.config({ path: `.env.${env}` });

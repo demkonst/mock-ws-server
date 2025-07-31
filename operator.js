@@ -3,18 +3,6 @@ const WebSocket = require('ws');
 const dotenv = require('dotenv');
 const { interpolateCoordinates, calculateDistance } = require('./vehicle.js');
 
-// Маппинг между именами файлов операторов и числовыми ID для API
-const OPERATOR_ID_MAPPING = {
-  '01': '99',           // Используем существующий токен AUTH_TOKEN_OPERATOR_01
-  '02': '102',          // Используем существующий токен AUTH_TOKEN_OPERATOR_02
-  'HIAGDA': '88',       // Используем существующий токен AUTH_TOKEN_OPERATOR_HIAGDA
-  'new_format': '99',   // Используем тот же ID, что и для '01'
-  'geo_events': '99',   // Используем тот же ID, что и для '01'
-  'interpolation_test': '99', // Используем тот же ID, что и для '01'
-  'with_interpolation': '99', // Используем тот же ID, что и для '01'
-  'without_interpolation': '99' // Используем тот же ID, что и для '01'
-};
-
 function loadEnvFor(env) {
   dotenv.config({ path: `.env.${env}` });
 }
@@ -29,8 +17,8 @@ async function getOperatorToken(operatorId, env = 'dev') {
   }
 
   // Преобразуем имя оператора в числовой ID через маппинг
-  const numericOperatorId = OPERATOR_ID_MAPPING[operatorId] || operatorId;
-  console.log(`🔄 [${operatorId}] Преобразован в числовой ID: ${numericOperatorId}`);
+  const numericOperatorId = operatorId;
+  console.log(`🔄 [${operatorId}] ID оператора для API: ${numericOperatorId}`);
   console.log(`🔗 [${operatorId}] URL: ${baseUrl.replace(/\/$/, '')}/operators/credentials?operator_id=${numericOperatorId}`);
   console.log(`🔐 [${operatorId}] Auth header: ${authHeader}`);
 
@@ -110,7 +98,9 @@ function connectOperator(operator, env = 'dev', operatorId = null) {
       
       // Всегда используем API для получения токена
       // Если operatorId передан, используем его, иначе используем имя оператора
-      const targetOperatorId = operatorId || operator;
+      console.log(`🔍 [${operator}] operatorId: "${operatorId}", operator: "${operator}"`);
+      const targetOperatorId = (operatorId && operatorId !== 'null') ? operatorId : operator;
+      console.log(`🔍 [${operator}] targetOperatorId: "${targetOperatorId}"`);
       TOKEN = await getOperatorToken(targetOperatorId, env);
       console.log(`🔐 [${operator}] Используем токен: ${TOKEN.substring(0, 20)}...`);
 
@@ -216,6 +206,7 @@ function generateMessagesFromWaypoints(waypoints, config) {
 
 function runOperator(operator, env = 'dev', ws = null, timeout = null, customCoords = null, operatorId = null) {
   loadEnvFor(env);
+  console.log(`🔍 [${operator}] runOperator вызван с operatorId: "${operatorId}"`);
   let messages;
   
   try {
@@ -269,9 +260,14 @@ function runOperator(operator, env = 'dev', ws = null, timeout = null, customCoo
         throw new Error(`Неизвестный формат файла оператора: ${filePath}`);
       }
       
-      // Для файловых операторов используем имя оператора как operatorId
-      if (!operatorId) {
-        operatorId = operator;
+      // Для файловых операторов используем ID из имени файла (с обрезкой ведущих нулей)
+      if (!operatorId || operatorId === 'null') {
+        // Убираем ведущие нули из имени оператора для получения числового ID
+        console.log(`🔍 [${operator}] Исходное имя оператора: "${operator}"`);
+        const withoutLeadingZeros = operator.replace(/^0+/, '');
+        console.log(`🔍 [${operator}] После удаления ведущих нулей: "${withoutLeadingZeros}"`);
+        operatorId = withoutLeadingZeros || operator;
+        console.log(`🆔 [${operator}] ID оператора из имени файла: ${operatorId}`);
       }
     }
   } catch (err) {

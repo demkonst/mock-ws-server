@@ -114,11 +114,13 @@ class Vehicle {
     console.log(`📤 [${this.client}] Отправляем координату: (${lat.toFixed(8)}, ${lon.toFixed(8)})`);
 
     try {
-      const response = await axios.post(process.env.BASE_URL_CONNECTOR + '/debug/locations/vehicle', payload);
+      const url = (process.env.BASE_URL_CONNECTOR + '/debug/locations/vehicle').replace(/\/\//g, '/').replace('https:/', 'https://');
+      const response = await axios.post(url, payload);
       console.log(`✅ [${this.client}] (${lat.toFixed(8)}, ${lon.toFixed(8)}) => ${response.status}`);
       return { success: true, status: response.status };
     } catch (err) {
-      console.error(`❌ [${this.client}] (${lat.toFixed(8)}, ${lon.toFixed(8)}) => ${err.message}`);
+      const url = (process.env.BASE_URL_CONNECTOR + '/debug/locations/vehicle').replace(/\/\//g, '/').replace('https:/', 'https://');
+      console.error(`❌ [${this.client}] (${lat.toFixed(8)}, ${lon.toFixed(8)}) => Request failed with status code ${err.response?.status || 'unknown'} (URL: ${url})`);
       return { success: false, error: err.message };
     }
   }

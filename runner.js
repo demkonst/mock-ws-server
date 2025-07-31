@@ -13,19 +13,21 @@ class Runner {
   }
 
   async connectAll() {
-    if (!this.operators || this.operators.length === 0) {
-      console.error('❌ Укажи хотя бы один оператор. Пример: ENV=dev node runner.js 1 2 3');
-      throw new Error('Нет операторов');
-    }
     const results = await Promise.all(this.operators.map(async (operator) => {
       try {
-        // Получаем operator_id для кастомных координат
         let operatorId = null;
+        
+        // Проверяем, есть ли кастомные координаты для этого оператора
         if (this.operatorCoords && this.operatorCoords[operator]) {
           const coordsData = this.operatorCoords[operator];
           if (typeof coordsData === 'object' && coordsData.operator_id) {
             operatorId = coordsData.operator_id;
           }
+        } else {
+          // Для файловых операторов используем ID из имени файла (с обрезкой ведущих нулей)
+          const numericId = operator.replace(/^0+/, '') || operator;
+          operatorId = numericId;
+          console.log(`🆔 [${operator}] ID оператора из имени файла в connectAll: ${operatorId} (исходный: ${numericId})`);
         }
         
         const { ws } = await connectOperator(operator, this.env, operatorId);
@@ -69,6 +71,10 @@ class Runner {
             };
             operatorId = coordsData.operator_id;
           }
+        } else {
+          // Для файловых операторов используем ID из имени файла (с обрезкой ведущих нулей)
+          operatorId = operator.replace(/^0+/, '') || operator;
+          console.log(`🆔 [${operator}] ID оператора из имени файла в runner: ${operatorId}`);
         }
         
         runOperator(operator, this.env, ws, this.timeout, customCoords, operatorId).catch(err => {
