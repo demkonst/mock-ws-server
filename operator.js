@@ -1,26 +1,40 @@
-require('dotenv').config({ path: `.env.${process.env.ENV || 'dev'}` });
-
 const fs = require('fs');
 const WebSocket = require('ws');
+const dotenv = require('dotenv');
+
+let lastLoadedEnv = null;
+function loadEnvFor(env) {
+  if (lastLoadedEnv !== env) {
+    dotenv.config({ path: `.env.${env}` });
+    lastLoadedEnv = env;
+  }
+}
 
 function connectOperator(operator, env = 'dev') {
+  loadEnvFor(env);
   if (!operator) {
     console.error('❌ Не указан оператор!');
     return Promise.reject(new Error('Не указан оператор'));
   }
 
-  const WS_URL = process.env.WS_URL;
+  const baseUrl = process.env.BASE_URL;
+  if (!baseUrl) {
+    console.error('❌ BASE_URL не определён в .env');
+    return Promise.reject(new Error('Не найден BASE_URL'));
+  }
+  const wsUrl = `${baseUrl}/api/collector/locations/ws`;
+  
   // Форматируем номер оператора с ведущим нулем для поиска токена
   const operatorNum = operator.toString().padStart(2, '0');
   const TOKEN = process.env[`AUTH_TOKEN_OPERATOR_${operatorNum}`];
 
-  if (!WS_URL || !TOKEN) {
-    console.error(`❌ Не найден WS_URL или токен для оператора "${operator}" (AUTH_TOKEN_OPERATOR_${operatorNum})`);
-    return Promise.reject(new Error('Не найден WS_URL или токен'));
+  if (!TOKEN) {
+    console.error(`❌ Не найден токен для оператора "${operator}" (AUTH_TOKEN_OPERATOR_${operatorNum})`);
+    return Promise.reject(new Error('Не найден токен'));
   }
 
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(WS_URL, {
+    const ws = new WebSocket(wsUrl, {
       headers: {
         Authorization: `Bearer ${TOKEN}`
       }
@@ -56,13 +70,14 @@ function getCloseReason(code, reason) {
 }
 
 function runOperator(operator, env = 'dev', ws = null, timeout = null) {
+  loadEnvFor(env);
   let messages;
   try {
     // Форматируем номер оператора с ведущим нулем
     const operatorNum = operator.toString().padStart(2, '0');
-    messages = JSON.parse(fs.readFileSync(`operators/operator_${operatorNum}.json`));
+    messages = JSON.parse(fs.readFileSync(`operators_${env}/operator_${operatorNum}.json`));
   } catch (err) {
-    console.error(`❌ Не удалось прочитать operators/operator_${operator.toString().padStart(2, '0')}.json: ${err.message}`);
+    console.error(`❌ Не удалось прочитать operators_${env}/operator_${operator.toString().padStart(2, '0')}.json: ${err.message}`);
     return Promise.reject(err);
   }
 

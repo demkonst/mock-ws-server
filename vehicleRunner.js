@@ -1,21 +1,22 @@
-const { Transport } = require('./transport');
+const { Vehicle } = require('./vehicle');
 const fs = require('fs');
 const path = require('path');
 
-class TransportRunner {
+class VehicleRunner {
   constructor(clients, env = 'dev', options = {}) {
     this.clients = clients;
     this.env = env;
     this.debug = options.debug || false;
     this.logBuffer = [];
-    this.transportMap = new Map(); // client -> transport
-    this.transportRegistry = options.transportRegistry || null; // глобальный реестр транспортов
+    this.vehicleMap = new Map(); // client -> vehicle
+    this.vehicleRegistry = options.vehicleRegistry || null; // глобальный реестр vehicles
     this.duration = options.duration || 300; // длительность в секундах
   }
 
   async connectAll() {
+    console.log('VehicleRunner env:', this.env, 'clients:', this.clients);
     if (!this.clients || this.clients.length === 0) {
-      console.error('❌ Укажи хотя бы один клиент. Пример: node transportRunner.js client1 client2');
+      console.error('❌ Укажи хотя бы один клиент. Пример: node vehicleRunner.js client1 client2');
       throw new Error('Нет клиентов');
     }
     
@@ -23,7 +24,8 @@ class TransportRunner {
       try {
         // Проверяем, что файл данных существует
         const clientNum = client.toString().padStart(2, '0');
-        const filePath = path.join(__dirname, 'vehicles', `vehicle_${clientNum}.json`);
+        const filePath = path.join(__dirname, `vehicles_${this.env}`, `vehicle_${clientNum}.json`);
+        console.log('Ищу файл:', filePath);
         if (!fs.existsSync(filePath)) {
           return { client, status: 'error', error: `Файл vehicle_${clientNum}.json не найден` };
         }
@@ -38,20 +40,20 @@ class TransportRunner {
   }
 
   async runInBackground() {
-    // Запускать Transport для всех клиентов в фоне
+    // Запускать Vehicle для всех клиентов в фоне
     for (const client of this.clients) {
-      const transport = new Transport(client, this.env, { 
+      const vehicle = new Vehicle(client, this.env, { 
         duration: this.duration,
         delay: 1000 
       });
-      this.transportMap.set(client, transport);
+      this.vehicleMap.set(client, vehicle);
       
       // Добавить в глобальный реестр, если он есть
-      if ( this.transportRegistry ) {
-        this.transportRegistry.set( client, transport );
+      if ( this.vehicleRegistry ) {
+        this.vehicleRegistry.set( client, vehicle );
       }
 
-      transport.run().catch(err => {
+      vehicle.run().catch(err => {
         console.error(`[${client}] Ошибка в фоне:`, err);
       });
     }
@@ -65,24 +67,24 @@ class TransportRunner {
   }
 
   stopAll() {
-    console.log( `🛑 Останавливаем TransportRunner для клиентов: [${this.clients.join( ', ' )}]` );
+    console.log( `🛑 Останавливаем VehicleRunner для клиентов: [${this.clients.join( ', ' )}]` );
 
-    for (const [client, transport] of this.transportMap) {
+    for (const [client, vehicle] of this.vehicleMap) {
       try {
-        console.log( `🛑 Останавливаем транспорт для клиента ${client}` );
-        transport.stop();
+        console.log( `🛑 Останавливаем vehicle для клиента ${client}` );
+        vehicle.stop();
       } catch ( e ) {
-        console.error( `Ошибка при остановке транспорта для клиента ${client}:`, e );
+        console.error( `Ошибка при остановке vehicle для клиента ${client}:`, e );
       }
     }
 
     // Очистить локальный реестр
-    this.transportMap.clear();
+    this.vehicleMap.clear();
 
     // Очистить глобальный реестр
-    if ( this.transportRegistry ) {
+    if ( this.vehicleRegistry ) {
       for ( const client of this.clients ) {
-        this.transportRegistry.delete( client );
+        this.vehicleRegistry.delete( client );
       }
     }
   }
@@ -91,8 +93,8 @@ class TransportRunner {
 if (require.main === module) {
   const clients = process.argv.slice(2);
   const env = process.env.ENV || 'dev';
-  const runner = new TransportRunner(clients, env, { debug: true });
+  const runner = new VehicleRunner(clients, env, { debug: true });
   runner.run().catch(() => process.exit(1));
 }
 
-module.exports = { TransportRunner }; 
+module.exports = { VehicleRunner }; 
