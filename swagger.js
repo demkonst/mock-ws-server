@@ -6,7 +6,7 @@ const options = {
     info: {
       title: 'Mock WebSocket Server API',
       version: '1.0.0',
-      description: 'API для симуляции операторов и транспортных средств с поддержкой различных окружений',
+      description: 'API для симуляции операторов и транспортных средств с поддержкой различных окружений. Система автоматически определяет формат координат ([lat, lon] или [lon, lat]) и обеспечивает обратную совместимость.',
       contact: {
         name: 'API Support',
         email: 'support@example.com'
@@ -32,7 +32,7 @@ const options = {
                   minItems: 2,
                   maxItems: 2
                 },
-                description: 'Array of [lon, lat] coordinates'
+                description: 'Array of coordinates in [lat, lon] or [lon, lat] format. System automatically detects format based on values.'
               },
               {
                 type: 'object',
@@ -45,7 +45,7 @@ const options = {
                       minItems: 2,
                       maxItems: 2
                     },
-                    description: 'Array of [lon, lat] coordinates'
+                    description: 'Array of coordinates in [lat, lon] or [lon, lat] format. System automatically detects format based on values.'
                   },
                   client: {
                     type: 'integer',
@@ -66,15 +66,15 @@ const options = {
           },
           example: {
             "my_route": [
-              [106.54683029, 58.03256597],
-              [106.5384, 58.03409],
-              [106.53784625, 58.03890375]
+              [58.03256597, 106.54683029],
+              [58.03409, 106.5384],
+              [58.03890375, 106.53784625]
             ],
             "vehicle_123": {
               "coords": [
-                [106.54683029, 58.03256597],
-                [106.5384, 58.03409],
-                [106.53784625, 58.03890375]
+                [58.03256597, 106.54683029],
+                [58.03409, 106.5384],
+                [58.03890375, 106.53784625]
               ],
               "client": 123456,
               "speed": 15,
@@ -94,7 +94,7 @@ const options = {
                   minItems: 2,
                   maxItems: 2
                 },
-                description: 'Array of [lon, lat] coordinates'
+                description: 'Array of coordinates in [lat, lon] or [lon, lat] format. System automatically detects format based on values.'
               },
               {
                 type: 'object',
@@ -107,7 +107,7 @@ const options = {
                       minItems: 2,
                       maxItems: 2
                     },
-                    description: 'Array of [lon, lat] coordinates'
+                    description: 'Array of coordinates in [lat, lon] or [lon, lat] format. System automatically detects format based on values.'
                   },
                   operator_id: {
                     type: 'integer',
@@ -140,15 +140,15 @@ const options = {
           },
           example: {
             "my_operator": [
-              [106.54683029, 58.03256597],
-              [106.5384, 58.03409],
-              [106.53784625, 58.03890375]
+              [58.03256597, 106.54683029],
+              [58.03409, 106.5384],
+              [58.03890375, 106.53784625]
             ],
             "operator_123": {
               "coords": [
-                [106.54683029, 58.03256597],
-                [106.5384, 58.03409],
-                [106.53784625, 58.03890375]
+                [58.03256597, 106.54683029],
+                [58.03409, 106.5384],
+                [58.03890375, 106.53784625]
               ],
               "operator_id": 123456,
               "speed": 60,
@@ -201,10 +201,12 @@ const options = {
               description: 'Запустить все транспортные средства окружения'
             },
             vehicleCoords: {
-              $ref: '#/components/schemas/VehicleCoords'
+              $ref: '#/components/schemas/VehicleCoords',
+              description: 'Кастомные координаты для транспортных средств. Поддерживает форматы [lat, lon] и [lon, lat].'
             },
             operatorCoords: {
-              $ref: '#/components/schemas/OperatorCoords'
+              $ref: '#/components/schemas/OperatorCoords',
+              description: 'Кастомные координаты для операторов. Поддерживает форматы [lat, lon] и [lon, lat].'
             }
           }
         },
