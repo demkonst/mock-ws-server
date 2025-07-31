@@ -9,6 +9,7 @@ class Runner {
     this.wsMap = new Map(); // operator -> ws
     this.wsRegistry = options.wsRegistry || null; // глобальный реестр ws
     this.timeout = options.timeout || null; // таймаут в секундах
+    this.operatorCoords = options.operatorCoords || null; // кастомные координаты для операторов
   }
 
   async connectAll() {
@@ -18,7 +19,16 @@ class Runner {
     }
     const results = await Promise.all(this.operators.map(async (operator) => {
       try {
-        const { ws } = await connectOperator(operator, this.env);
+        // Получаем operator_id для кастомных координат
+        let operatorId = null;
+        if (this.operatorCoords && this.operatorCoords[operator]) {
+          const coordsData = this.operatorCoords[operator];
+          if (typeof coordsData === 'object' && coordsData.operator_id) {
+            operatorId = coordsData.operator_id;
+          }
+        }
+        
+        const { ws } = await connectOperator(operator, this.env, operatorId);
         this.wsMap.set(operator, ws);
         if (this.wsRegistry) {
           this.wsRegistry.set(operator, ws);
@@ -36,7 +46,32 @@ class Runner {
     for (const operator of this.operators) {
       const ws = this.wsMap.get(operator);
       if (ws) {
-        runOperator(operator, this.env, ws, this.timeout).catch(err => {
+        // Получаем кастомные координаты для этого оператора
+        let customCoords = null;
+        let operatorId = null;
+        
+        if (this.operatorCoords && this.operatorCoords[operator]) {
+          const coordsData = this.operatorCoords[operator];
+          
+          if (Array.isArray(coordsData)) {
+            // Простой массив координат [lon, lat]
+            customCoords = coordsData;
+          } else if (coordsData.coords && coordsData.operator_id) {
+            // Объект с координатами и operator_id
+            customCoords = {
+              coords: coordsData.coords,
+              operator_id: coordsData.operator_id,
+              speed: coordsData.speed, // кастомная скорость
+              course: coordsData.course, // кастомный курс
+              altitude: coordsData.altitude, // кастомная высота
+              delay: coordsData.delay, // кастомная задержка
+              interpolate: coordsData.interpolate // кастомная интерполяция
+            };
+            operatorId = coordsData.operator_id;
+          }
+        }
+        
+        runOperator(operator, this.env, ws, this.timeout, customCoords, operatorId).catch(err => {
           console.error(`[${operator}] Ошибка в фоне:`, err);
         });
       }

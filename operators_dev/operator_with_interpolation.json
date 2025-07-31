@@ -7,5 +7,6 @@
   "speed": 40,
   "course": 90,
   "altitude": 10,
-  "delay": 2000
+  "delay": 2000,
+  "interpolate": true
 } 

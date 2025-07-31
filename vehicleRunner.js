@@ -11,10 +11,13 @@ class VehicleRunner {
     this.vehicleMap = new Map(); // client -> vehicle
     this.vehicleRegistry = options.vehicleRegistry || null; // глобальный реестр vehicles
     this.duration = options.duration || 300; // длительность в секундах
+    this.speed = options.speed || 10; // скорость в м/с (36 км/ч по умолчанию)
+    this.vehicleCoords = options.vehicleCoords || null; // координаты из запроса
+    this.interpolate = options.interpolate !== false; // интерполяция включена по умолчанию
   }
 
   async connectAll() {
-    console.log('VehicleRunner env:', this.env, 'clients:', this.clients);
+    console.log('VehicleRunner env:', this.env, 'clients:', this.clients, 'speed:', this.speed, 'm/s');
     if (!this.clients || this.clients.length === 0) {
       console.error('❌ Укажи хотя бы один клиент. Пример: node vehicleRunner.js client1 client2');
       throw new Error('Нет клиентов');
@@ -22,15 +25,24 @@ class VehicleRunner {
     
     const results = await Promise.all(this.clients.map(async (client) => {
       try {
-        // Проверяем, что файл данных существует
-        const clientNum = client.toString().padStart(2, '0');
-        const filePath = path.join(__dirname, `vehicles_${this.env}`, `vehicle_${clientNum}.json`);
-        console.log('Ищу файл:', filePath);
-        if (!fs.existsSync(filePath)) {
-          return { client, status: 'error', error: `Файл vehicle_${clientNum}.json не найден` };
-        }
+        // Проверяем, есть ли кастомные координаты для этого клиента
+        const hasCustomCoords = this.vehicleCoords && this.vehicleCoords[client];
         
-        return { client, status: 'ready', error: null };
+        if (hasCustomCoords) {
+          // Для кастомных координат не проверяем файл
+          console.log(`✅ [${client}] Используем кастомные координаты, пропускаем проверку файла`);
+          return { client, status: 'ready', error: null };
+        } else {
+          // Проверяем, что файл данных существует только для файловых клиентов
+          const clientNum = client.toString().padStart(2, '0');
+          const filePath = path.join(__dirname, `vehicles_${this.env}`, `vehicle_${clientNum}.json`);
+          console.log('Ищу файл:', filePath);
+          if (!fs.existsSync(filePath)) {
+            return { client, status: 'error', error: `Файл vehicle_${clientNum}.json не найден` };
+          }
+          
+          return { client, status: 'ready', error: null };
+        }
       } catch (err) {
         return { client, status: 'error', error: err.message };
       }
@@ -42,9 +54,34 @@ class VehicleRunner {
   async runInBackground() {
     // Запускать Vehicle для всех клиентов в фоне
     for (const client of this.clients) {
+      // Получаем координаты для этого клиента из запроса или null
+      let customCoords = null;
+      if (this.vehicleCoords && this.vehicleCoords[client]) {
+        const coordsData = this.vehicleCoords[client];
+        
+        // Проверяем формат данных
+        if (Array.isArray(coordsData)) {
+          // Простой массив координат [lon, lat]
+          customCoords = coordsData;
+        } else if (coordsData.coords && coordsData.client) {
+          // Объект с координатами и client ID
+          customCoords = {
+            coords: coordsData.coords,
+            client: coordsData.client,
+            speed: coordsData.speed, // кастомная скорость
+            interpolate: coordsData.interpolate // кастомная интерполяция
+          };
+        } else {
+          console.warn(`⚠️ Неверный формат координат для ${client}:`, coordsData);
+        }
+      }
+      
       const vehicle = new Vehicle(client, this.env, { 
         duration: this.duration,
-        delay: 1000 
+        delay: 1000,
+        speed: this.speed, // если указан в запросе, переопределит значение из файла
+        customCoords: customCoords, // координаты из запроса для этого клиента
+        interpolate: this.interpolate // передаем настройку интерполяции
       });
       this.vehicleMap.set(client, vehicle);
       

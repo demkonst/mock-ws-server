@@ -1,16 +1,66 @@
 const fs = require('fs');
 const WebSocket = require('ws');
 const dotenv = require('dotenv');
+const { interpolateCoordinates, calculateDistance } = require('./vehicle.js');
 
-let lastLoadedEnv = null;
 function loadEnvFor(env) {
-  if (lastLoadedEnv !== env) {
-    dotenv.config({ path: `.env.${env}` });
-    lastLoadedEnv = env;
+  dotenv.config({ path: `.env.${env}` });
+}
+
+async function getOperatorToken(operatorId, env = 'dev') {
+  loadEnvFor(env);
+  const baseUrl = process.env.BASE_URL;
+  const authHeader = process.env.AUTH_HEADER || 'Basic aW5rLW1vbjppbmttb25pdG9yaW5n';
+  
+  if (!baseUrl) {
+    throw new Error('Не найден BASE_URL');
+  }
+
+  try {
+    // Получаем credentials для оператора
+    const credentialsResponse = await fetch(`${baseUrl}/api/units/operators/credentials?operator_id=${operatorId}`, {
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': authHeader
+      }
+    });
+
+    if (!credentialsResponse.ok) {
+      throw new Error(`Ошибка получения credentials: ${credentialsResponse.status}`);
+    }
+
+    const credentials = await credentialsResponse.json();
+    console.log(`📋 [${operatorId}] Получены credentials`);
+
+    // Логинимся с полученными credentials
+    const loginResponse = await fetch(`${baseUrl}/api/units/auth/operator/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': authHeader
+      },
+      body: JSON.stringify({
+        login: credentials.login,
+        password: credentials.password
+      })
+    });
+
+    if (!loginResponse.ok) {
+      throw new Error(`Ошибка логина: ${loginResponse.status}`);
+    }
+
+    const loginData = await loginResponse.json();
+    console.log(`🔑 [${operatorId}] Получен токен`);
+    
+    return loginData.token || loginData.access_token;
+  } catch (error) {
+    console.error(`❌ [${operatorId}] Ошибка получения токена:`, error.message);
+    throw error;
   }
 }
 
-function connectOperator(operator, env = 'dev') {
+function connectOperator(operator, env = 'dev', operatorId = null) {
   loadEnvFor(env);
   if (!operator) {
     console.error('❌ Не указан оператор!');
@@ -24,29 +74,42 @@ function connectOperator(operator, env = 'dev') {
   }
   const wsUrl = `${baseUrl}/api/collector/locations/ws`;
   
-  // Форматируем номер оператора с ведущим нулем для поиска токена
-  const operatorNum = operator.toString().padStart(2, '0');
-  const TOKEN = process.env[`AUTH_TOKEN_OPERATOR_${operatorNum}`];
-
-  if (!TOKEN) {
-    console.error(`❌ Не найден токен для оператора "${operator}" (AUTH_TOKEN_OPERATOR_${operatorNum})`);
-    return Promise.reject(new Error('Не найден токен'));
-  }
-
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(wsUrl, {
-      headers: {
-        Authorization: `Bearer ${TOKEN}`
+  return new Promise(async (resolve, reject) => {
+    try {
+      let TOKEN;
+      
+      if (operatorId) {
+        // Получаем токен через API для кастомного оператора
+        TOKEN = await getOperatorToken(operatorId, env);
+      } else {
+        // Используем токен из окружения для файлового оператора
+        const operatorNum = operator.toString().padStart(2, '0');
+        TOKEN = process.env[`AUTH_TOKEN_OPERATOR_${operatorNum}`];
+        
+        if (!TOKEN) {
+          console.error(`❌ Не найден токен для оператора "${operator}" (AUTH_TOKEN_OPERATOR_${operatorNum})`);
+          return reject(new Error('Не найден токен'));
+        }
       }
-    });
-    ws.once('open', () => {
-      console.log(`✅ [${operator}] Подключено`);
-      resolve({ ws });
-    });
-    ws.once('error', err => {
-      console.error(`⚠️ [${operator}] Ошибка подключения: ${err.message}`);
-      reject(err);
-    });
+
+      const ws = new WebSocket(wsUrl, {
+        headers: {
+          Authorization: `Bearer ${TOKEN}`
+        }
+      });
+      
+      ws.once('open', () => {
+        console.log(`✅ [${operator}] Подключено`);
+        resolve({ ws });
+      });
+      
+      ws.once('error', err => {
+        console.error(`⚠️ [${operator}] Ошибка подключения: ${err.message}`);
+        reject(err);
+      });
+    } catch (error) {
+      reject(error);
+    }
   });
 }
 
@@ -69,13 +132,121 @@ function getCloseReason(code, reason) {
   return `${reasonText} (${code})${reason ? ` - ${reason}` : ''}`;
 }
 
-function runOperator(operator, env = 'dev', ws = null, timeout = null) {
+function generateMessagesFromWaypoints(waypoints, config) {
+  const { speed = 40, course = 90, altitude = 10, delay = 2000, interpolate = true } = config;
+  
+  // Конвертируем координаты из [lon, lat] или [lat, lon] в {lat, lon}
+  const convertedWaypoints = waypoints.map(coord => {
+    if (Array.isArray(coord) && coord.length === 2) {
+      // Определяем, какой формат используется: [lon, lat] или [lat, lon]
+      const first = coord[0];
+      const second = coord[1];
+      
+      // Если первое значение > 90, то это долгота (lon), иначе широта (lat)
+      if (Math.abs(first) > 90) {
+        // Формат [lon, lat] - нужно поменять местами
+        return { lon: first, lat: second };
+      } else {
+        // Формат [lat, lon] - уже в правильном порядке
+        return { lat: first, lon: second };
+      }
+    } else if (coord.lat && coord.lon) {
+      return coord; // уже в правильном формате
+    } else {
+      throw new Error(`Неверный формат координаты: ${JSON.stringify(coord)}. Ожидается [lon, lat], [lat, lon] или {lat, lon}`);
+    }
+  });
+  
+  let finalCoords;
+  
+  if (interpolate) {
+    // Интерполируем координаты на основе скорости
+    const speedMps = speed / 3.6; // конвертируем км/ч в м/с
+    const intervalMs = delay; // используем delay как интервал
+    finalCoords = interpolateCoordinates(convertedWaypoints, speedMps, intervalMs);
+    console.log(`🔄 [Operator] Интерполяция: ${convertedWaypoints.length} waypoints → ${finalCoords.length} точек`);
+  } else {
+    // Используем waypoints как есть, без интерполяции
+    finalCoords = convertedWaypoints;
+    console.log(`📍 [Operator] Без интерполяции: ${finalCoords.length} waypoints`);
+  }
+  
+  // Генерируем сообщения для каждой точки
+  const messages = finalCoords.map((coord, index) => {
+    return {
+      payload: {
+        lat: coord.lat,
+        lon: coord.lon,
+        timestamp: Math.floor(Date.now() / 1000) + index * 2,
+        speed: speed,
+        speed_accuracy: 1,
+        course: course,
+        course_accuracy: 5,
+        altitude: altitude,
+        altitude_accuracy: 2
+      },
+      delay: delay
+    };
+  });
+  
+  return messages;
+}
+
+function runOperator(operator, env = 'dev', ws = null, timeout = null, customCoords = null, operatorId = null) {
   loadEnvFor(env);
   let messages;
+  
   try {
-    // Форматируем номер оператора с ведущим нулем
-    const operatorNum = operator.toString().padStart(2, '0');
-    messages = JSON.parse(fs.readFileSync(`operators_${env}/operator_${operatorNum}.json`));
+          if (customCoords) {
+        // Используем кастомные координаты из запроса
+        console.log(`🚀 [${operator}] Используем кастомные координаты: ${customCoords.length} точек`);
+        
+        if (Array.isArray(customCoords)) {
+          // Простой массив координат [lon, lat]
+          messages = generateMessagesFromWaypoints(customCoords, {
+            speed: 40,
+            course: 90,
+            altitude: 10,
+            delay: 2000,
+            interpolate: true
+          });
+        } else if (customCoords.coords && customCoords.operator_id) {
+          // Объект с координатами и operator_id
+          const config = {
+            speed: customCoords.speed || 40,
+            course: customCoords.course || 90,
+            altitude: customCoords.altitude || 10,
+            delay: customCoords.delay || 2000,
+            interpolate: customCoords.interpolate !== false
+          };
+          
+          console.log(`⚡ [${operator}] Кастомные параметры: скорость=${config.speed} км/ч, курс=${config.course}°, высота=${config.altitude}м, задержка=${config.delay}мс, интерполяция=${config.interpolate}`);
+          
+          messages = generateMessagesFromWaypoints(customCoords.coords, config);
+          operatorId = customCoords.operator_id;
+        } else {
+          throw new Error(`Неверный формат кастомных координат для ${operator}`);
+        }
+    } else {
+      // Используем координаты из файла
+      const operatorNum = operator.toString().padStart(2, '0');
+      const filePath = `operators_${env}/operator_${operatorNum}.json`;
+      const fileContent = fs.readFileSync(filePath);
+      const data = JSON.parse(fileContent);
+      
+      // Проверяем, является ли это новым форматом с waypoints
+      if (data.waypoints && Array.isArray(data.waypoints)) {
+        // Новый формат: генерируем сообщения из waypoints
+        console.log(`🚀 [${operator}] Используем новый формат с waypoints: ${data.waypoints.length} точек`);
+        messages = generateMessagesFromWaypoints(data.waypoints, data);
+      } else if (Array.isArray(data)) {
+        // Старый формат: массив сообщений
+        console.log(`🚀 [${operator}] Используем старый формат: ${data.length} сообщений`);
+        messages = data;
+      } else {
+        throw new Error(`Неизвестный формат файла оператора: ${filePath}`);
+      }
+    }
   } catch (err) {
     console.error(`❌ Не удалось прочитать operators_${env}/operator_${operator.toString().padStart(2, '0')}.json: ${err.message}`);
     return Promise.reject(err);
@@ -83,7 +254,7 @@ function runOperator(operator, env = 'dev', ws = null, timeout = null) {
 
   const getWs = ws
     ? Promise.resolve({ ws })
-    : connectOperator(operator, env);
+    : connectOperator(operator, env, operatorId);
 
   return getWs.then(({ ws }) => {
     return new Promise((resolve, reject) => {

@@ -1,0 +1,48 @@
+{
+  "env": "dev",
+  "operators": ["01", "02", "HIAGDA"],
+  "vehicles": ["11", "12", "13"],
+  "allOperators": true,
+  "allVehicles": true,
+  "duration": 300,
+  "speed": 15,
+  "interpolate": true,
+  "notifications": true,
+  "vehicleCoords": {
+    "my_route": [
+      [106.54683029, 58.03256597],
+      [106.5384, 58.03409],
+      [106.53784625, 58.03890375]
+    ],
+    "vehicle_123": {
+      "coords": [
+        [106.54683029, 58.03256597],
+        [106.5384, 58.03409],
+        [106.53784625, 58.03890375]
+      ],
+      "client": 123456,
+      "speed": 15,
+      "interpolate": true
+    }
+  },
+  "operatorCoords": {
+    "my_operator": [
+      [106.54683029, 58.03256597],
+      [106.5384, 58.03409],
+      [106.53784625, 58.03890375]
+    ],
+    "operator_123": {
+      "coords": [
+        [106.54683029, 58.03256597],
+        [106.5384, 58.03409],
+        [106.53784625, 58.03890375]
+      ],
+      "operator_id": 123456,
+      "speed": 60,
+      "course": 45,
+      "altitude": 15,
+      "delay": 3000,
+      "interpolate": true
+    }
+  }
+} 
